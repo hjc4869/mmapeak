@@ -89,6 +89,7 @@ The tool detects the available hardware capabilities at runtime. Tensor core ope
 
 ## Architecture Support
 
+- Turing (2080ti, etc.): SM75
 - Ampere (A100, A30, etc.): SM80
 - Ampere (A40, 3090, etc.): SM86
 - Ada Lovelace (L40, 4090, etc.): SM89

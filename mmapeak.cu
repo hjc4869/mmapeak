@@ -1,4 +1,4 @@
-// nvcc -O2 mmapeak.cu -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_120a,code=sm_120a -o mmapeak
+// nvcc -O2 mmapeak.cu -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_120a,code=sm_120a -o mmapeak
 
 #include <cuda.h>
 #include <mma.h>
@@ -483,6 +483,7 @@ __global__ void mma_f16f16f32_32_8_16(void *data, int *rc)
     *rc = 0;
 }
 
+#if __CUDA_ARCH__ >= 800
 __global__ void mma_bf16bf16f32_16_16_16(void *data, int *rc)
 {
     mma_<__nv_bfloat16, float, 16, 16, 16>((float *)data);
@@ -500,6 +501,22 @@ __global__ void mma_tf32tf32f32_16_16_8(void *data, int *rc)
     mma_<precision::tf32, float, 16, 16, 8>((float *)data);
     *rc = 0;
 }
+#else
+__global__ void mma_bf16bf16f32_16_16_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_bf16bf16f32_32_8_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_tf32tf32f32_16_16_8(void *data, int *rc)
+{
+    *rc = 1;
+}
+#endif
 
 #define cudaCheckError() cudaCheckError_(__FILE__, __LINE__)
 inline void cudaCheckError_(const char *file, int line)

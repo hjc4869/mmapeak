@@ -14,15 +14,15 @@ add_executable(mmapeak mmapeak.cu)
 if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
     message(STATUS "CUDA version is 12.8 or greater, adding sm_120a")
     set_target_properties(mmapeak PROPERTIES
-        CUDA_ARCHITECTURES "80;86;89;90;120a")
+        CUDA_ARCHITECTURES "75;80;86;89;90;120a")
 elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
     message(STATUS "CUDA version is less than 12.8, not adding sm_120a")
     set_target_properties(mmapeak PROPERTIES
-        CUDA_ARCHITECTURES "80;86;89;90")
+        CUDA_ARCHITECTURES "75;80;86;89;90")
 else()
     message(STATUS "CUDA version is less than 12.0, not adding sm_89, sm_90, sm_120a")
     set_target_properties(mmapeak PROPERTIES
-        CUDA_ARCHITECTURES "80;86")
+        CUDA_ARCHITECTURES "75;80;86")
 endif()
 
 # Set compiler flags
