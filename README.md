@@ -5,7 +5,7 @@ MMAPEAK is a CUDA-based benchmarking tool designed to measure the peak performan
 ## Overview
 
 This tool measures the throughput of NVIDIA's Tensor Core operations using different precision formats:
-- 4-bit integer (int4)
+- 4-bit integer (Int4)
 - 4-bit floating point (FP4)
 - 4-bit floating point with group scale (MXFP4 G32, NVFP4 G16)
 - 6-bit floating point (FP6)
@@ -18,13 +18,17 @@ This tool measures the throughput of NVIDIA's Tensor Core operations using diffe
 
 ## Building
 
-### Using CMake (recommended)
+### Using CMake
 
 ```bash
 mkdir build && cd build
 cmake ..
 make
 ```
+
+#### Note
+
+Please use CUDA Toolkit version 12.8.1 (or later) instead of 12.8.0 to ensure compatibility with the Blackwell architecture.
 
 ## Usage
 
@@ -85,7 +89,7 @@ run: 9128.7 ms 87.8 T(fl)ops
 
 ## Compatibility
 
-The tool detects the available hardware capabilities at runtime. Tensor core operations that are not supported on your hardware will display "not supported".
+Tensor core operations that are not supported on your hardware will display "not supported".
 
 ## Architecture Support
 
