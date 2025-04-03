@@ -5,7 +5,10 @@
 #if __CUDA_ARCH__ >= 890
 #include <cuda_fp8.h>
 #endif
-#if __CUDA_ARCH__ >= 1200
+#if __CUDA_ARCH__ >= 1200 && !(__CUDACC_VER_MAJOR__ < 12 || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ < 8) || (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ == 8 && __CUDACC_VER_BUILD__ < 90))
+#define ENABLE_BLACKWELL 1
+#endif
+#if ENABLE_BLACKWELL
 #include <cuda_fp4.h>
 #endif
 #include <stdio.h>
@@ -69,7 +72,7 @@ __device__ void mma_s4_(OutputType *data)
     store_matrix_sync(ptr, d, N, mem_row_major);
 }
 
-#if __CUDA_ARCH__ >= 1200
+#if ENABLE_BLACKWELL
 __device__ void mma_mxf4mxf4f32_16_8_64_(float *data)
 {
     uint32_t d[4] = {0};
@@ -333,7 +336,7 @@ __global__ void mma_s4s4s32_8_8_32(void *data, int *rc)
     *rc = 0;
 }
 
-#if __CUDA_ARCH__ >= 1200
+#if ENABLE_BLACKWELL
 __global__ void mma_mxf4mxf4f32_16_8_64(void *data, int *rc)
 {
     mma_mxf4mxf4f32_16_8_64_((float *)data);
