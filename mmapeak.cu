@@ -633,46 +633,70 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("Running benchmarks with target time: %.1f seconds\n", targetTime);
-    printf("mma_s4s4s32_8_8_32\n");
-    run<int, 8, 8, 32>((void *)mma_s4s4s32_8_8_32, targetTime);
-    printf("mma_mxf4mxf4f32_16_8_64\n");
-    run<float, 16, 8, 64>((void *)mma_mxf4mxf4f32_16_8_64, targetTime);
-    printf("mma_nvf4nvf4f32_16_8_64\n");
-    run<float, 16, 8, 64>((void *)mma_nvf4nvf4f32_16_8_64, targetTime);
-    printf("mma_f4f4f16_16_8_32\n");
-    run<half, 16, 8, 32>((void *)mma_f4f4f16_16_8_32, targetTime);
-    printf("mma_f4f4f32_16_8_32\n");
-    run<float, 16, 8, 32>((void *)mma_f4f4f32_16_8_32, targetTime);
-    printf("mma_f6f6f16_16_8_32\n");
-    run<half, 16, 8, 32>((void *)mma_f6f6f16_16_8_32, targetTime);
-    printf("mma_f6f6f32_16_8_32\n");
-    run<float, 16, 8, 32>((void *)mma_f6f6f32_16_8_32, targetTime);
-    printf("mma_mxf6mxf6f32_16_8_32\n");
-    run<float, 16, 8, 32>((void *)mma_mxf6mxf6f32_16_8_32, targetTime);
-    printf("mma_mxf8mxf8f32_16_8_32\n");
-    run<float, 16, 8, 32>((void *)mma_mxf8mxf8f32_16_8_32, targetTime);
-    printf("mma_f8f8f16_16_8_32\n");
-    run<half, 16, 8, 32>((void *)mma_f8f8f16_16_8_32, targetTime);
-    printf("mma_f8f8f32_16_8_32\n");
-    run<float, 16, 8, 32>((void *)mma_f8f8f32_16_8_32, targetTime);
-    printf("mma_s8s8s32_16_16_16\n");
-    run<int, 16, 16, 16>((void *)mma_s8s8s32_16_16_16, targetTime);
-    printf("mma_s8s8s32_32_8_16\n");
-    run<int, 32, 8, 16>((void *)mma_s8s8s32_32_8_16, targetTime);
-    printf("mma_f16f16f16_16_16_16\n");
-    run<half, 16, 16, 16>((void *)mma_f16f16f16_16_16_16, targetTime);
-    printf("mma_f16f16f16_32_8_16\n");
-    run<half, 32, 8, 16>((void *)mma_f16f16f16_32_8_16, targetTime);
-    printf("mma_f16f16f32_16_16_16\n");
-    run<float, 16, 16, 16>((void *)mma_f16f16f32_16_16_16, targetTime);
-    printf("mma_f16f16f32_32_8_16\n");
-    run<float, 32, 8, 16>((void *)mma_f16f16f32_32_8_16, targetTime);
-    printf("mma_bf16bf16f32_16_16_16\n");
-    run<float, 16, 16, 16>((void *)mma_bf16bf16f32_16_16_16, targetTime);
-    printf("mma_bf16bf16f32_32_8_16\n");
-    run<float, 32, 8, 16>((void *)mma_bf16bf16f32_32_8_16, targetTime);
-    printf("mma_tf32tf32f32_16_16_8\n");
-    run<float, 16, 16, 8>((void *)mma_tf32tf32f32_16_16_8, targetTime);
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+    cudaCheckError();
+    if (deviceCount == 0)
+    {
+        printf("No CUDA devices found\n");
+        return 1;
+    }
+    for (int i = 0; i < deviceCount; i++)
+    {
+        printf("----------------------------------------\n");
+
+        cudaDeviceProp prop;
+        cudaGetDeviceProperties(&prop, i);
+        cudaCheckError();
+        printf("Device %d: %s\n", i, prop.name);
+        printf("  Compute capability: %d.%d\n", prop.major, prop.minor);
+        printf("  Total global memory: %.1f GiB\n", prop.totalGlobalMem / (1024.0 * 1024.0 * 1024.0));
+        printf("  Multiprocessor count: %d\n", prop.multiProcessorCount);
+
+        cudaSetDevice(i);
+        cudaCheckError();
+
+        printf("Running benchmarks with target time: %.1f seconds\n", targetTime);
+        printf("mma_s4s4s32_8_8_32\n");
+        run<int, 8, 8, 32>((void *)mma_s4s4s32_8_8_32, targetTime);
+        printf("mma_mxf4mxf4f32_16_8_64\n");
+        run<float, 16, 8, 64>((void *)mma_mxf4mxf4f32_16_8_64, targetTime);
+        printf("mma_nvf4nvf4f32_16_8_64\n");
+        run<float, 16, 8, 64>((void *)mma_nvf4nvf4f32_16_8_64, targetTime);
+        printf("mma_f4f4f16_16_8_32\n");
+        run<half, 16, 8, 32>((void *)mma_f4f4f16_16_8_32, targetTime);
+        printf("mma_f4f4f32_16_8_32\n");
+        run<float, 16, 8, 32>((void *)mma_f4f4f32_16_8_32, targetTime);
+        printf("mma_f6f6f16_16_8_32\n");
+        run<half, 16, 8, 32>((void *)mma_f6f6f16_16_8_32, targetTime);
+        printf("mma_f6f6f32_16_8_32\n");
+        run<float, 16, 8, 32>((void *)mma_f6f6f32_16_8_32, targetTime);
+        printf("mma_mxf6mxf6f32_16_8_32\n");
+        run<float, 16, 8, 32>((void *)mma_mxf6mxf6f32_16_8_32, targetTime);
+        printf("mma_mxf8mxf8f32_16_8_32\n");
+        run<float, 16, 8, 32>((void *)mma_mxf8mxf8f32_16_8_32, targetTime);
+        printf("mma_f8f8f16_16_8_32\n");
+        run<half, 16, 8, 32>((void *)mma_f8f8f16_16_8_32, targetTime);
+        printf("mma_f8f8f32_16_8_32\n");
+        run<float, 16, 8, 32>((void *)mma_f8f8f32_16_8_32, targetTime);
+        printf("mma_s8s8s32_16_16_16\n");
+        run<int, 16, 16, 16>((void *)mma_s8s8s32_16_16_16, targetTime);
+        printf("mma_s8s8s32_32_8_16\n");
+        run<int, 32, 8, 16>((void *)mma_s8s8s32_32_8_16, targetTime);
+        printf("mma_f16f16f16_16_16_16\n");
+        run<half, 16, 16, 16>((void *)mma_f16f16f16_16_16_16, targetTime);
+        printf("mma_f16f16f16_32_8_16\n");
+        run<half, 32, 8, 16>((void *)mma_f16f16f16_32_8_16, targetTime);
+        printf("mma_f16f16f32_16_16_16\n");
+        run<float, 16, 16, 16>((void *)mma_f16f16f32_16_16_16, targetTime);
+        printf("mma_f16f16f32_32_8_16\n");
+        run<float, 32, 8, 16>((void *)mma_f16f16f32_32_8_16, targetTime);
+        printf("mma_bf16bf16f32_16_16_16\n");
+        run<float, 16, 16, 16>((void *)mma_bf16bf16f32_16_16_16, targetTime);
+        printf("mma_bf16bf16f32_32_8_16\n");
+        run<float, 32, 8, 16>((void *)mma_bf16bf16f32_32_8_16, targetTime);
+        printf("mma_tf32tf32f32_16_16_8\n");
+        run<float, 16, 16, 8>((void *)mma_tf32tf32f32_16_16_8, targetTime);
+    }
     return 0;
 }

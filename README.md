@@ -4,7 +4,7 @@ MMAPEAK is a CUDA-based benchmarking tool designed to measure the peak performan
 
 ## Overview
 
-This tool measures the throughput of NVIDIA's Tensor Core operations using different precision formats:
+This tool measures the throughput of NVIDIA's Tensor Core dense operations using different precision formats:
 - 4-bit integer (Int4)
 - 4-bit floating point (FP4)
 - 4-bit floating point with group scale (MXFP4 G32, NVFP4 G16)
@@ -30,6 +30,8 @@ make
 
 Please use CUDA Toolkit version 12.8.1 (or later) instead of 12.8.0 to ensure compatibility with the Blackwell architecture.
 
+`wgmma` is not currently utilized, results in suboptimal FP8 performance on Hopper devices.
+
 ## Usage
 
 ```bash
@@ -44,9 +46,14 @@ Please use CUDA Toolkit version 12.8.1 (or later) instead of 12.8.0 to ensure co
 ## Example Output
 
 ```
-Running benchmarks with target time: 10.0 seconds
+----------------------------------------
+Device 0: NVIDIA H100 NVL
+  Compute capability: 9.0
+  Total global memory: 93.1 GiB
+  Multiprocessor count: 132
+Running benchmarks with target time: 3.0 seconds
 mma_s4s4s32_8_8_32
-run: 9294.6 ms 1189.6 T(fl)ops
+run: 2998.6 ms 28.1 T(fl)ops
 mma_mxf4mxf4f32_16_8_64
 not supported
 mma_nvf4nvf4f32_16_8_64
@@ -64,27 +71,27 @@ not supported
 mma_mxf8mxf8f32_16_8_32
 not supported
 mma_f8f8f16_16_8_32
-run: 8330.3 ms 701.5 T(fl)ops
+run: 3000.3 ms 1431.8 T(fl)ops
 mma_f8f8f32_16_8_32
-run: 9055.2 ms 351.0 T(fl)ops
+run: 2999.1 ms 1208.5 T(fl)ops
 mma_s8s8s32_16_16_16
-run: 8798.9 ms 680.7 T(fl)ops
+run: 2998.4 ms 1410.1 T(fl)ops
 mma_s8s8s32_32_8_16
-run: 8047.5 ms 680.9 T(fl)ops
+run: 2998.0 ms 1409.6 T(fl)ops
 mma_f16f16f16_16_16_16
-run: 8993.3 ms 350.1 T(fl)ops
+run: 2999.3 ms 992.3 T(fl)ops
 mma_f16f16f16_32_8_16
-run: 9052.7 ms 351.7 T(fl)ops
+run: 2999.5 ms 981.2 T(fl)ops
 mma_f16f16f32_16_16_16
-run: 9162.0 ms 176.8 T(fl)ops
+run: 2998.3 ms 978.4 T(fl)ops
 mma_f16f16f32_32_8_16
-run: 9090.1 ms 176.9 T(fl)ops
+run: 3001.9 ms 976.8 T(fl)ops
 mma_bf16bf16f32_16_16_16
-run: 9117.0 ms 176.3 T(fl)ops
+run: 2997.8 ms 972.9 T(fl)ops
 mma_bf16bf16f32_32_8_16
-run: 9031.1 ms 176.3 T(fl)ops
+run: 3000.0 ms 977.0 T(fl)ops
 mma_tf32tf32f32_16_16_8
-run: 9128.7 ms 87.8 T(fl)ops
+run: 2998.6 ms 380.6 T(fl)ops
 ```
 
 ## Compatibility

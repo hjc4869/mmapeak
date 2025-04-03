@@ -12,11 +12,11 @@ find_package(CUDA REQUIRED)
 add_executable(mmapeak mmapeak.cu)
 
 if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 12.8)
-    message(STATUS "CUDA version is 12.8 or greater, adding sm_120a")
+    message(STATUS "CUDA version is 12.8 or greater, adding up to sm_120a")
     set_target_properties(mmapeak PROPERTIES
         CUDA_ARCHITECTURES "75;80;86;89;90;120a")
 else()
-    message(STATUS "CUDA version is less than 12.8, not adding sm_89, sm_90, sm_120a")
+    message(STATUS "CUDA version is less than 12.8, adding up to sm_86")
     set_target_properties(mmapeak PROPERTIES
         CUDA_ARCHITECTURES "75;80;86")
 endif()
