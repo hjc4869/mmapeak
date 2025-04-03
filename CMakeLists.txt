@@ -23,7 +23,7 @@ endif()
 
 # Set compiler flags
 set_target_properties(mmapeak PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON)
+    CUDA_SEPARABLE_COMPILATION OFF)
 
 target_compile_options(mmapeak PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O2>)
 
