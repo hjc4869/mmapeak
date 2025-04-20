@@ -1,4 +1,49 @@
 // nvcc -O2 mmapeak.cu -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 -gencode arch=compute_120a,code=sm_120a -o mmapeak
+// hipcc mmapeak.cu -o mmapeak_hip --offload-arch=gfx908,gfx90a,gfx942,gfx11-generic,gfx12-generic -Wno-unused-result 
+
+#ifdef __HIPCC__
+
+#ifdef __HIP_DEVICE_COMPILE__
+
+// workaround rocWMMA limitations
+#if defined(__GFX11__)
+#define __gfx1100__ 1
+#elif defined(__GFX12__)
+#define __gfx1201__ 1
+#elif !defined(__gfx908__) && !defined(__gfx90a__) && !defined(__gfx942__) && !defined(__gfx950__)
+#error "Architecture not supported"
+#endif
+
+#endif // __HIP_DEVICE_COMPILE__
+
+#include <hip/hip_runtime.h>
+#include <rocwmma/rocwmma.hpp>
+#define wmma rocwmma
+#define cudaError_t hipError_t
+#define cudaDeviceProp hipDeviceProp_t
+#define cudaGetLastError hipGetLastError
+#define cudaGetErrorString hipGetErrorString
+#define cudaSuccess hipSuccess
+#define cudaMalloc hipMalloc
+#define cudaFree hipFree
+#define cudaStream_t hipStream_t
+#define cudaStreamCreate hipStreamCreate
+#define cudaStreamDestroy hipStreamDestroy
+#define cudaEvent_t hipEvent_t
+#define cudaEventCreate hipEventCreate
+#define cudaEventRecord hipEventRecord
+#define cudaEventSynchronize hipEventSynchronize
+#define cudaEventElapsedTime hipEventElapsedTime
+#define cudaMemcpy hipMemcpy
+#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define cudaGetDeviceCount hipGetDeviceCount
+#define cudaGetDeviceProperties hipGetDeviceProperties
+#define cudaSetDevice hipSetDevice
+#define __syncwarp void
+
+#else
+
+#define wmma nvcuda::wmma
 
 #include <cuda.h>
 #include <mma.h>
@@ -11,11 +56,13 @@
 #if ENABLE_BLACKWELL
 #include <cuda_fp4.h>
 #endif
+
+#endif // __HIPCC__
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
-using namespace nvcuda::wmma;
+using namespace wmma;
 
 #define N_LOOP_INTERNAL 8192
 #define N_LOOP_CALIB 128
@@ -27,9 +74,9 @@ __device__ void mma_(OutputType *data)
     fragment<accumulator, M, N, K, OutputType> d;
     fragment<matrix_a, M, N, K, InputType, row_major> a;
     fragment<matrix_b, M, N, K, InputType, col_major> b;
-    fill_fragment(d, 0);
-    fill_fragment(a, 0);
-    fill_fragment(b, 0);
+    fill_fragment(d, static_cast<OutputType>(0));
+    fill_fragment(a, static_cast<InputType>(0));
+    fill_fragment(b, static_cast<InputType>(0));
     for (unsigned k = 0; k < N_LOOP_INTERNAL; k++)
     {
         mma_sync(d, a, b, d);
@@ -39,6 +86,7 @@ __device__ void mma_(OutputType *data)
     store_matrix_sync(ptr, d, N, mem_row_major);
 }
 
+#ifndef __HIPCC__
 inline __device__ void mma_s4_(
     fragment<accumulator, 8, 8, 32, int> &d,
     const fragment<matrix_a, 8, 8, 32, experimental::precision::s4, row_major> &
@@ -71,6 +119,49 @@ __device__ void mma_s4_(OutputType *data)
     OutputType *ptr = &data[threadIdx.y * M * N];
     store_matrix_sync(ptr, d, N, mem_row_major);
 }
+#else
+
+typedef int v2i __attribute__((ext_vector_type(2)));
+typedef int v8i __attribute__((ext_vector_type(8)));
+
+__device__ void mma_s4_16_16_16(int *data)
+{
+#ifdef __GFX12__
+    int a = 0, b = 0;
+    v8i d = {0};
+    for (unsigned k = 0; k < N_LOOP_INTERNAL; k++)
+    {
+        d = __builtin_amdgcn_wmma_i32_16x16x16_iu4_w32_gfx12(true, a, true, b, d, false);
+    }
+
+    ((v8i*)data)[threadIdx.y * 256] = d;
+#elif __GFX11__
+    v2i a = {0}, b = {0};
+    v8i d = {0};
+    for (unsigned k = 0; k < N_LOOP_INTERNAL; k++)
+    {
+        d = __builtin_amdgcn_wmma_i32_16x16x16_iu4_w32(true, a, true, b, d, false);
+    }
+
+    ((v8i*)data)[threadIdx.y * 256] = d;
+#endif
+}
+
+#ifdef __GFX12__
+__device__ void mma_s4_16_16_32(int *data)
+{
+    v2i a = {0}, b = {0};
+    v8i d = {0};
+    for (unsigned k = 0; k < N_LOOP_INTERNAL; k++)
+    {
+        d = __builtin_amdgcn_wmma_i32_16x16x32_iu4_w32_gfx12(true, a, true, b, d, false);
+    }
+
+    ((v8i*)data)[threadIdx.y * 256] = d;
+}
+#endif
+
+#endif
 
 #if ENABLE_BLACKWELL
 __device__ void mma_mxf4mxf4f32_16_8_64_(float *data)
@@ -328,13 +419,79 @@ __device__ void mma_f8f8f32_16_8_32_(float *data)
     asm volatile(
         "wmma.store.d.sync.aligned.row.m8n8k32.global.s32 [%0], {%1, %2};\n" ::"l"(data + 64), "r"(d[2]), "r"(d[3]));
 }
+#elif defined(__GFX12__)
+__device__ void mma_f8f8f32_16_16_16(void *data)
+{
+    mma_<__hip_fp8_e4m3, float, 16, 16, 16>((float*)data);
+}
 #endif
 
+#ifndef __HIPCC__
 __global__ void mma_s4s4s32_8_8_32(void *data, int *rc)
 {
     mma_s4_<experimental::precision::s4, int, 8, 8, 32>((int *)data);
     *rc = 0;
 }
+
+__global__ void mma_s4s4s32_16_16_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_s4s4s32_16_16_32(void *data, int *rc)
+{
+    *rc = 1;
+}
+#elif defined(__GFX12__)
+__global__ void mma_s4s4s32_8_8_32(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_s4s4s32_16_16_16(void *data, int *rc)
+{
+    mma_s4_16_16_16((int *)data);
+    *rc = 0;
+}
+
+__global__ void mma_s4s4s32_16_16_32(void *data, int *rc)
+{
+    mma_s4_16_16_32((int *)data);
+    *rc = 0;
+}
+
+#elif defined(__GFX11__)
+__global__ void mma_s4s4s32_8_8_32(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_s4s4s32_16_16_16(void *data, int *rc)
+{
+    mma_s4_16_16_16((int *)data);
+    *rc = 0;
+}
+
+__global__ void mma_s4s4s32_16_16_32(void *data, int *rc)
+{
+    *rc = 1;
+}
+#else
+__global__ void mma_s4s4s32_8_8_32(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_s4s4s32_16_16_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_s4s4s32_16_16_32(void *data, int *rc)
+{
+    *rc = 1;
+}
+#endif
 
 #if ENABLE_BLACKWELL
 __global__ void mma_mxf4mxf4f32_16_8_64(void *data, int *rc)
@@ -450,17 +607,37 @@ __global__ void mma_f8f8f32_16_8_32(void *data, int *rc)
 }
 #endif
 
+#if defined(__GFX12__)
+__global__ void mma_f8f8f32_16_16_16(void *data, int *rc)
+{
+    mma_f8f8f32_16_16_16((float*)data);
+    *rc = 0;
+}
+#else
+__global__ void mma_f8f8f32_16_16_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+#endif
+
 __global__ void mma_s8s8s32_16_16_16(void *data, int *rc)
 {
     mma_<signed char, int, 16, 16, 16>((int *)data);
     *rc = 0;
 }
 
+#ifndef __HIPCC__
 __global__ void mma_s8s8s32_32_8_16(void *data, int *rc)
 {
     mma_<signed char, int, 32, 8, 16>((int *)data);
     *rc = 0;
 }
+#else
+__global__ void mma_s8s8s32_32_8_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+#endif
 
 __global__ void mma_f16f16f16_16_16_16(void *data, int *rc)
 {
@@ -468,11 +645,18 @@ __global__ void mma_f16f16f16_16_16_16(void *data, int *rc)
     *rc = 0;
 }
 
+#ifndef __HIPCC__
 __global__ void mma_f16f16f16_32_8_16(void *data, int *rc)
 {
     mma_<half, half, 32, 8, 16>((half *)data);
     *rc = 0;
 }
+#else
+__global__ void mma_f16f16f16_32_8_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+#endif
 
 __global__ void mma_f16f16f32_16_16_16(void *data, int *rc)
 {
@@ -480,11 +664,18 @@ __global__ void mma_f16f16f32_16_16_16(void *data, int *rc)
     *rc = 0;
 }
 
+#ifndef __HIPCC__
 __global__ void mma_f16f16f32_32_8_16(void *data, int *rc)
 {
     mma_<half, float, 32, 8, 16>((float *)data);
     *rc = 0;
 }
+#else
+__global__ void mma_f16f16f32_32_8_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+#endif
 
 #if __CUDA_ARCH__ >= 800
 __global__ void mma_bf16bf16f32_16_16_16(void *data, int *rc)
@@ -504,6 +695,22 @@ __global__ void mma_tf32tf32f32_16_16_8(void *data, int *rc)
     mma_<precision::tf32, float, 16, 16, 8>((float *)data);
     *rc = 0;
 }
+#elif defined(__HIPCC__)
+__global__ void mma_bf16bf16f32_16_16_16(void *data, int *rc)
+{
+    mma_<hip_bfloat16, float, 16, 16, 16>((float *)data);
+    *rc = 0;
+}
+
+__global__ void mma_bf16bf16f32_32_8_16(void *data, int *rc)
+{
+    *rc = 1;
+}
+
+__global__ void mma_tf32tf32f32_16_16_8(void *data, int *rc)
+{
+    *rc = 1;
+}
 #else
 __global__ void mma_bf16bf16f32_16_16_16(void *data, int *rc)
 {
@@ -520,7 +727,6 @@ __global__ void mma_tf32tf32f32_16_16_8(void *data, int *rc)
     *rc = 1;
 }
 #endif
-
 #define cudaCheckError() cudaCheckError_(__FILE__, __LINE__)
 inline void cudaCheckError_(const char *file, int line)
 {
@@ -662,6 +868,10 @@ int main(int argc, char **argv)
         printf("Running benchmarks with target time: %.1f seconds\n", targetTime);
         printf("mma_s4s4s32_8_8_32\n");
         run<int, 8, 8, 32>((void *)mma_s4s4s32_8_8_32, targetTime);
+        printf("mma_s4s4s32_16_16_32\n");
+        run<int, 16, 16, 32>((void *)mma_s4s4s32_16_16_32, targetTime);
+        printf("mma_s4s4s32_16_16_16\n");
+        run<int, 16, 16, 16>((void *)mma_s4s4s32_16_16_16, targetTime);
         printf("mma_mxf4mxf4f32_16_8_64\n");
         run<float, 16, 8, 64>((void *)mma_mxf4mxf4f32_16_8_64, targetTime);
         printf("mma_nvf4nvf4f32_16_8_64\n");
@@ -682,6 +892,8 @@ int main(int argc, char **argv)
         run<half, 16, 8, 32>((void *)mma_f8f8f16_16_8_32, targetTime);
         printf("mma_f8f8f32_16_8_32\n");
         run<float, 16, 8, 32>((void *)mma_f8f8f32_16_8_32, targetTime);
+        printf("mma_f8f8f32_16_16_16\n");
+        run<float, 16, 16, 16>((void *)mma_f8f8f32_16_16_16, targetTime);
         printf("mma_s8s8s32_16_16_16\n");
         run<int, 16, 16, 16>((void *)mma_s8s8s32_16_16_16, targetTime);
         printf("mma_s8s8s32_32_8_16\n");
